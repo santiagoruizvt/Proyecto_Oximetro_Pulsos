@@ -62,6 +62,8 @@ void Error_Handler(void);
 #define LED_GPIO_Port GPIOC
 #define PULSADOR_Pin GPIO_PIN_14
 #define PULSADOR_GPIO_Port GPIOC
+#define SPI2_CSS_Pin GPIO_PIN_12
+#define SPI2_CSS_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
