@@ -66,6 +66,9 @@ void Error_Handler(void);
 #define SPI2_CSS_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
+#define INICIANDO 0
+#define PREPARADO 1
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
