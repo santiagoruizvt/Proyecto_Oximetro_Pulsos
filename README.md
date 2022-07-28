@@ -2,7 +2,7 @@
 *Repositorio destinado para el proyecto de la materia Técnicas Digitales 3*
 
 ## Se encuentra disponible en la carpeta "Documentos" el preinforme del proyecto.
-## Se agrega el código desarollado con STM32CubeIDE, con las siguientes configuraciones:
+## Se agrega el código desarrollado con STM32CubeIDE, con las siguientes configuraciones:
 
 - UART: Se utilizará para la comunicación con el módulo bluetooth HM10.
 	- PA2: TX
