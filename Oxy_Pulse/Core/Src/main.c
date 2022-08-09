@@ -25,7 +25,7 @@
 
 #include "fonts.h"
 #include "ssd1306.h"
-
+#include "string.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -54,6 +54,8 @@ UART_HandleTypeDef huart2;
 /* USER CODE BEGIN PV */
 uint16_t contador=DEMORA;
 uint8_t estado=0;
+uint8_t byte;
+uint8_t mensaje_1[]="Iniciando medicion";
 const unsigned char LOGO [] = {
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -173,6 +175,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   SSD1306_Init();
+  HAL_UART_Receive_IT(&huart2, &byte, sizeof(byte));
 
   SSD1306_GotoXY(40, 0);
   SSD1306_Puts("OXY",&Font_16x26,1);
@@ -210,7 +213,18 @@ int main(void)
 		  SSD1306_GotoXY(70, 50);
 		  SSD1306_Puts("iniciar",&Font_7x10,1);
 		  SSD1306_UpdateScreen();
+		  if(!contador)
+		  {
+			  estado=MIDIENDO;
+			  contador=DEMORA;
+		  }
 		  break;
+	  case MIDIENDO:
+		  if(!contador)
+		  {
+			  HAL_UART_Transmit_IT(&huart2,mensaje_1, strlen((char*)mensaje_1));
+			  contador=DEMORA;
+		  }
 	  default:;
 	  }
   }
@@ -370,14 +384,14 @@ static void MX_USART2_UART_Init(void)
 {
 
   /* USER CODE BEGIN USART2_Init 0 */
-
+	__USART2_CLK_ENABLE();
   /* USER CODE END USART2_Init 0 */
 
   /* USER CODE BEGIN USART2_Init 1 */
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 115200;
+  huart2.Init.BaudRate = 9600;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
@@ -389,7 +403,8 @@ static void MX_USART2_UART_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN USART2_Init 2 */
-
+  HAL_NVIC_SetPriority(USART2_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(USART2_IRQn);
   /* USER CODE END USART2_Init 2 */
 
 }
@@ -422,11 +437,11 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PULSADOR_Pin */
-  GPIO_InitStruct.Pin = PULSADOR_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  /*Configure GPIO pin : PC14 */
+  GPIO_InitStruct.Pin = GPIO_PIN_14;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(PULSADOR_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pin : SPI2_CSS_Pin */
   GPIO_InitStruct.Pin = SPI2_CSS_Pin;
@@ -444,6 +459,29 @@ void HAL_IncTick(void)
 
   if(contador)
   contador--;
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	if(huart->Instance==USART2)
+	{
+		HAL_UART_Receive_IT(&huart2, &byte, sizeof(byte));
+		//Transmitir byte de nuevo
+		HAL_UART_Transmit(&huart2, &byte, sizeof(byte), 100);
+		//Habilito la interrupción
+		HAL_UART_Receive_IT(&huart2, &byte, sizeof(byte));
+
+		if (byte == 'a')
+			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 0);
+
+		if (byte == 'b')
+			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 1);
+	}
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+
 }
 /* USER CODE END 4 */
 
