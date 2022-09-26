@@ -24,7 +24,16 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_pwr.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_spi.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h \
- ../Core/Inc/fonts.h ../Core/Inc/ssd1306.h ../Core/Inc/fonts.h
+ C:/Users/ssant/STM32CubeIDE/workspace_1.7.0/Proyecto_Oximetro_Pulsos/trunk/Oxy_Pulse/FATFS/App/fatfs.h \
+ C:/Users/ssant/STM32CubeIDE/workspace_1.7.0/Proyecto_Oximetro_Pulsos/trunk/Oxy_Pulse/Middlewares/Third_Party/FatFs/src/ff.h \
+ C:/Users/ssant/STM32CubeIDE/workspace_1.7.0/Proyecto_Oximetro_Pulsos/trunk/Oxy_Pulse/Middlewares/Third_Party/FatFs/src/integer.h \
+ C:/Users/ssant/STM32CubeIDE/workspace_1.7.0/Proyecto_Oximetro_Pulsos/trunk/Oxy_Pulse/FATFS/Target/ffconf.h \
+ C:/Users/ssant/STM32CubeIDE/workspace_1.7.0/Proyecto_Oximetro_Pulsos/trunk/Oxy_Pulse/Middlewares/Third_Party/FatFs/src/ff_gen_drv.h \
+ C:/Users/ssant/STM32CubeIDE/workspace_1.7.0/Proyecto_Oximetro_Pulsos/trunk/Oxy_Pulse/Middlewares/Third_Party/FatFs/src/diskio.h \
+ C:/Users/ssant/STM32CubeIDE/workspace_1.7.0/Proyecto_Oximetro_Pulsos/trunk/Oxy_Pulse/Middlewares/Third_Party/FatFs/src/ff.h \
+ C:/Users/ssant/STM32CubeIDE/workspace_1.7.0/Proyecto_Oximetro_Pulsos/trunk/Oxy_Pulse/FATFS/Target/user_diskio.h \
+ ../Core/Inc/fonts.h ../Core/Inc/ssd1306.h ../Core/Inc/fonts.h \
+ ../Core/Inc/SPISD.h ../Core/Inc/Globals.h ../Core/Inc/MAX30100.h
 ../Core/Inc/main.h:
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal.h:
 ../Core/Inc/stm32f1xx_hal_conf.h:
@@ -51,6 +60,17 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_pwr.h:
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_spi.h:
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h:
+C:/Users/ssant/STM32CubeIDE/workspace_1.7.0/Proyecto_Oximetro_Pulsos/trunk/Oxy_Pulse/FATFS/App/fatfs.h:
+C:/Users/ssant/STM32CubeIDE/workspace_1.7.0/Proyecto_Oximetro_Pulsos/trunk/Oxy_Pulse/Middlewares/Third_Party/FatFs/src/ff.h:
+C:/Users/ssant/STM32CubeIDE/workspace_1.7.0/Proyecto_Oximetro_Pulsos/trunk/Oxy_Pulse/Middlewares/Third_Party/FatFs/src/integer.h:
+C:/Users/ssant/STM32CubeIDE/workspace_1.7.0/Proyecto_Oximetro_Pulsos/trunk/Oxy_Pulse/FATFS/Target/ffconf.h:
+C:/Users/ssant/STM32CubeIDE/workspace_1.7.0/Proyecto_Oximetro_Pulsos/trunk/Oxy_Pulse/Middlewares/Third_Party/FatFs/src/ff_gen_drv.h:
+C:/Users/ssant/STM32CubeIDE/workspace_1.7.0/Proyecto_Oximetro_Pulsos/trunk/Oxy_Pulse/Middlewares/Third_Party/FatFs/src/diskio.h:
+C:/Users/ssant/STM32CubeIDE/workspace_1.7.0/Proyecto_Oximetro_Pulsos/trunk/Oxy_Pulse/Middlewares/Third_Party/FatFs/src/ff.h:
+C:/Users/ssant/STM32CubeIDE/workspace_1.7.0/Proyecto_Oximetro_Pulsos/trunk/Oxy_Pulse/FATFS/Target/user_diskio.h:
 ../Core/Inc/fonts.h:
 ../Core/Inc/ssd1306.h:
 ../Core/Inc/fonts.h:
+../Core/Inc/SPISD.h:
+../Core/Inc/Globals.h:
+../Core/Inc/MAX30100.h:

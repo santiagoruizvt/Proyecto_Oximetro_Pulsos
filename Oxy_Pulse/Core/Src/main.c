@@ -19,13 +19,18 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "fatfs.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "stdbool.h"
+#include "math.h"
 #include "fonts.h"
 #include "ssd1306.h"
 #include "string.h"
+#include "SPISD.h"
+#include "Globals.h"
+#include "MAX30100.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -35,7 +40,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define DEMORA 5000
+#define DEMORA 1000
+#define DEMORA2 10
+#define DEMORA3 27
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -52,10 +59,36 @@ SPI_HandleTypeDef hspi2;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+FIFO_t fifo;
+FIFO_t *mainFIFO = &fifo;
+meanDiffFilter_t meanfilter;
+meanDiffFilter_t *mainmeanfilter = &meanfilter;
+butterworthFilter_t lpbFilterIR;
+butterworthFilter_t *mainlpbFilterIR = &lpbFilterIR;
+pulseoxymeter_t result;
+float IRprev_w=0;
+float REDprev_w=0;
+float ir_dcfiltrado=0;
+float red_dcfiltrado=0;
+float ir_meanfiltrado=0;
+float ir_lpbfiltrado=0;
+float irACValueSqSum=0;
+float redACValueSqSum=0;
+float currentSaO2Value=0;
+float ratioRMS=0;
+SPISD spisd;
+SPISD *mainSD = &spisd;
+uint8_t Sector0[516];
 uint16_t contador=DEMORA;
+uint16_t cuenta=DEMORA2;
+uint16_t samplesRecorded=0;
+uint16_t pulsesDetected=0;
 uint8_t estado=0;
 uint8_t byte;
 uint8_t mensaje_1[]="Iniciando medicion";
+bool flag_1=1;
+bool flag_HR_ON=0;
+bool debug=false;
 const unsigned char LOGO [] = {
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -122,6 +155,12 @@ const unsigned char LOGO [] = {
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
+
+uint8_t buf1=0;
+uint8_t buf2=0;
+char buffer_bpm[5]={0};
+char buffer_SO2[5]={0};
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -163,7 +202,11 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+  spisd.FSM=Encendido;
+  spisd.csPuerto = GPIOB;
+  spisd.csPin = SPI2_CSS_Pin;
+  spisd.puertoSPI = &hspi2;
+  spisd.sectorAddressing=1; //Asumimos SDHC (+2GB)
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -172,6 +215,7 @@ int main(void)
   MX_I2C2_Init();
   MX_SPI2_Init();
   MX_USART2_UART_Init();
+  MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
 
   SSD1306_Init();
@@ -185,6 +229,18 @@ int main(void)
   SSD1306_Puts("...Iniciando...",&Font_7x10,1);
   SSD1306_UpdateScreen();
 
+   f_mount(&USERFatFS,USERPath,0);
+   f_open(&USERFile,"InformeOxy.txt",FA_CREATE_ALWAYS | FA_WRITE);
+   uint32_t output;
+   if (f_write(&USERFile,"Hola Mundo SD Card!",sizeof("Hola Mundo SD Card!"),(void*)&output)==FR_OK)
+   {
+ 	  if (f_sync(&USERFile)==FR_OK){
+ 		  f_close(&USERFile);
+ 	  }
+
+   }
+   //Inicio_SPO2_HR();
+   Inicio_SPO2_HR();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -202,7 +258,9 @@ int main(void)
 			  estado=PREPARADO;
 			  contador=DEMORA;
 			  SSD1306_Stopscroll();
-			  SSD1306_Clear();		  }
+			  SSD1306_Clear();
+
+		  }
 		  break;
 	  case PREPARADO:
 		  SSD1306_DrawBitmap(0, 0, LOGO, 128, 64, 1);
@@ -216,20 +274,145 @@ int main(void)
 		  if(!contador)
 		  {
 			  estado=MIDIENDO;
-			  contador=DEMORA;
+			  //contador=DEMORA3;
+			  Resetea_Resultados(&result,&meanfilter,currentSaO2Value);
 		  }
 		  break;
 	  case MIDIENDO:
-		  if(!contador)
+
+		  Lectura_FIFO(&fifo);
+
+		  Filtrado_DC(&fifo.rawIR,&IRprev_w,&ir_dcfiltrado);
+		  Filtrado_DC(&fifo.rawRED,&REDprev_w,&red_dcfiltrado);
+
+		  Mean_Median_Filter(ir_dcfiltrado,&meanfilter,&ir_meanfiltrado);
+		  Filtro_PasabajosButterworth(&ir_meanfiltrado,&lpbFilterIR,&ir_lpbfiltrado);
+
+		  irACValueSqSum  +=ir_dcfiltrado * ir_dcfiltrado;
+		  redACValueSqSum +=red_dcfiltrado * red_dcfiltrado;
+		  samplesRecorded++;
+
+		  if( detectPulse( ir_lpbfiltrado, &result ) && samplesRecorded > 0 )
+		    {
+		      result.pulseDetected=true;
+		      pulsesDetected++;
+
+		       ratioRMS = log( sqrt(redACValueSqSum/samplesRecorded) ) / log( sqrt(irACValueSqSum/samplesRecorded) );
+
+		      if( debug == true )
+		      {
+		        //Serial.print("RMS Ratio: ");
+		        //Serial.println(ratioRMS);
+		      }
+		      	  currentSaO2Value = 110.0 - 18.0 * ratioRMS;
+		          result.SaO2 = currentSaO2Value;
+
+		          if( pulsesDetected % RESET_SPO2_EVERY_N_PULSES == 0)
+		          {
+		            irACValueSqSum = 0;
+		            redACValueSqSum = 0;
+		            samplesRecorded = 0;
+		          }
+		     }
+		  Balance_Intensidades( REDprev_w, IRprev_w);
+
+		  //result.heartBPM = currentBPM;
+		  result.irCardiogram = lpbFilterIR.result;
+		  result.irDcValue = IRprev_w;
+		  result.redDcValue = REDprev_w;
+		  //result.lastBeatThreshold = lastBeatThreshold;
+		  result.dcFilteredIR = ir_dcfiltrado;
+		  result.dcFilteredRed = red_dcfiltrado;
+
+
+		  //if(!cuenta)
+		  	// {
+		  			  estado=PRESENTACION;
+		  			  contador=DEMORA3;
+		  			  cuenta=0;
+		  			  //SSD1306_Clear();
+		  	// }
+		  if(!contador && flag_1)
 		  {
 			  HAL_UART_Transmit_IT(&huart2,mensaje_1, strlen((char*)mensaje_1));
 			  contador=DEMORA;
+			  flag_1=0;
 		  }
-	  default:;
+		  else if (!contador && !flag_1){
+			  HAL_UART_Receive_IT(&huart2, &byte, sizeof(byte));
+			  contador=DEMORA;
+				if (byte == 'a')
+					HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 0);
+
+				if (byte == 'b')
+					HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 1);
+			}
+		  break;
+	  case PRESENTACION:
+		  if(result.pulseDetected == true)
+		  {
+		  buf2=(uint8_t)result.SaO2;
+		  buf1=(uint8_t)result.heartBPM;
+		  char buffer_bpm[5]={0};
+		  char buffer_SO2[5]={0};
+
+		  //buf1=56;
+		  //buf2=94;
+		  //itoa(buf1,buffer_bpm,5);
+		  //itoa(buf2,buffer_SO2,5);
+		  sprintf(buffer_bpm,"%u",buf1);
+		  sprintf(buffer_SO2,"%u",buf2);
+
+		  //buffer_bpm[0]=5;
+		  //buffer_bpm[1]=6;
+		  SSD1306_Clear();
+		  SSD1306_GotoXY(10, 5);
+		  SSD1306_Puts("BPM:",&Font_11x18,1);
+		  SSD1306_GotoXY(70, 5);
+		  SSD1306_Puts(buffer_bpm,&Font_11x18,1);
+		  //SSD1306_Putc(buf1, &Font_11x18, 1);
+		  SSD1306_GotoXY(10, 35);
+		  SSD1306_Puts("SO2:",&Font_11x18,1);
+		  SSD1306_GotoXY(70, 35);
+		  SSD1306_Puts(buffer_SO2,&Font_11x18,1);
+		  //SSD1306_Putc(buf2, &Font_11x18, 1);
+		  SSD1306_GotoXY(90, 35);
+		  SSD1306_Puts(" %",&Font_11x18,1);
+
+		  SSD1306_UpdateScreen();
+		  Resetea_Resultados(&result,&meanfilter,currentSaO2Value);
+		  ir_dcfiltrado=0;
+		  ir_lpbfiltrado=0;
+		  red_dcfiltrado=0;
+		  REDprev_w=0;
+		  }
+		  if(!contador)
+		  {
+			  estado=MIDIENDO;
+			  contador=0;
+			  //cuenta=DEMORA3;
+			  /*
+			  if(flag_HR_ON)
+			  {
+				  flag_HR_ON=0;
+				  Inicio_SPO2_HR();
+			  }
+			  else
+			  {
+				  flag_HR_ON=1;
+				  Inicio_Heart_Rate();
+			  }
+			  */
+		  }
+		  break;
+	  	  default:;
+		  }
+
+
 	  }
   }
   /* USER CODE END 3 */
-}
+
 
 /**
   * @brief System Clock Configuration
@@ -254,6 +437,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+
   /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
@@ -459,6 +643,9 @@ void HAL_IncTick(void)
 
   if(contador)
   contador--;
+
+  if(cuenta)
+  cuenta--;
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
@@ -516,5 +703,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

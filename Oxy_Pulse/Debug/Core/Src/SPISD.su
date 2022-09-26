@@ -1,0 +1,5 @@
+../Core/Src/SPISD.c:25:9:SPISD_EscribirSector	552	static
+../Core/Src/SPISD.c:84:9:SPISD_LeerSector	32	static
+../Core/Src/SPISD.c:154:6:SPISD_EnviarComando	24	static
+../Core/Src/SPISD.c:164:6:SPISD_RecibirRespuestaComando	32	static
+../Core/Src/SPISD.c:180:9:SPISD_DetectarSD	24	static

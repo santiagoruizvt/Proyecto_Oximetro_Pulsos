@@ -1,0 +1,11 @@
+../Core/Src/MAX30100.c:72:6:Inicio_Heart_Rate	16	static
+../Core/Src/MAX30100.c:93:6:Inicio_SPO2_HR	16	static
+../Core/Src/MAX30100.c:112:6:Lectura_FIFO	32	static
+../Core/Src/MAX30100.c:150:6:Filtrado_DC	48	static
+../Core/Src/MAX30100.c:170:6:Mean_Median_Filter	40	static
+../Core/Src/MAX30100.c:193:6:Filtro_PasabajosButterworth	40	static
+../Core/Src/MAX30100.c:206:6:detectPulse	40	static
+../Core/Src/MAX30100.c:325:6:Balance_Intensidades	24	static
+../Core/Src/MAX30100.c:357:6:Resetea_Resultados	32	static
+../Core/Src/MAX30100.c:377:6:MAX30100_I2C_Write	32	static
+../Core/Src/MAX30100.c:385:6:MAX30100_I2C_Read	32	static
