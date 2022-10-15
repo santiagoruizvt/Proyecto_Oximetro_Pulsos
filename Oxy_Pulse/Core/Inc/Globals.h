@@ -10,7 +10,7 @@
 
 #include "stm32f1xx_hal.h"
 #include "fatfs.h"
-//extern RTC_HandleTypeDef *pRTC;
+extern RTC_HandleTypeDef *pRTC;
 
 //Archivos SD
 extern uint8_t retUSER;

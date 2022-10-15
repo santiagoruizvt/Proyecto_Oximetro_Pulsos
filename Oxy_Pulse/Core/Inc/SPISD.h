@@ -23,7 +23,7 @@ typedef struct SPISD {
 	GPIO_TypeDef *csPuerto;
 	uint16_t csPin;
 	uint8_t sectorAddressing;
-//	 RTC_HandleTypeDef *hrtc;
+	 RTC_HandleTypeDef *hrtc;
 } SPISD;
 
 extern SPISD *mainSD;

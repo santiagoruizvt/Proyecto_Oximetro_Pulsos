@@ -5,6 +5,7 @@
  *      Author: ssant
  */
 #include "main.h"
+#include "math.h"
 #include "stdbool.h"
 #include "MAX30100.h"
 
@@ -42,7 +43,8 @@ uint8_t NUM_AVAILABLE_SAMPLES=0;
 uint8_t BYTE_LSB=0;
 uint8_t BYTE_MSB=0;
 
-uint8_t redLEDCurrent=(uint8_t) STARTING_RED_LED_CURRENT;
+uint8_t IRLedCurrent=0;
+uint8_t redLEDCurrent=0;
 float lastREDLedCurrentCheck=0;
 uint8_t currentPulseDetectorState;
 float currentBPM;
@@ -51,23 +53,155 @@ float valuesBPMSum;
 uint8_t valuesBPMCount=0;
 uint8_t bpmIndex=0;
 uint32_t lastBeatThreshold;
+uint16_t samplesRecorded=0;
+uint16_t pulsesDetected=0;
 
-uint8_t currentPulseDetectorState = PULSE_IDLE;
+float IRprev_w=0;
+float REDprev_w=0;
+float ir_dcfiltrado=0;
+float red_dcfiltrado=0;
+float ir_meanfiltrado=0;
+float ir_lpbfiltrado=0;
+float irACValueSqSum=0;
+float redACValueSqSum=0;
+float currentSaO2Value=0;
+float ratioRMS=0;
+
+uint8_t 			currentPulseDetectorState = PULSE_IDLE;
+butterworthFilter_t lpbFilterIR;
+meanDiffFilter_t 	meanDiffIR;
+dcFilter_t 			dcFilterIR;
+dcFilter_t 			dcFilterRed;
+
+void MAX30100_Init(void)
+{
+	uint8_t buffer=0;
+	uint8_t aux=0;
+
+	currentPulseDetectorState = PULSE_IDLE;
+
+	//				SETEO DEL MODO
+	//////////////////////////////////////////////////////////////
+	MAX30100_I2C_Read(MAX_ADDRESS_RD,MAX30100_MODE_CONF,buffer);
+	aux=(buffer&0xF8)|DEFAULT_OPERATING_MODE;
+	MAX30100_I2C_Write(MAX_ADDRESS_WR,MODE_RG,aux);
+	//////////////////////////////////////////////////////////////
+
+	//				SETEO SAMPLING_RATE
+	//////////////////////////////////////////////////////////////
+	MAX30100_I2C_Read(MAX_ADDRESS_RD, MAX30100_SPO2_CONF, buffer);
+	aux=(buffer&0xE3)|(DEFAULT_SAMPLING_RATE<<2);
+	MAX30100_I2C_Write(MAX_ADDRESS_WR, MAX30100_SPO2_CONF, aux);
+	//////////////////////////////////////////////////////////////
+
+	//				SETEO LED_Pulse_Width
+	/////////////////////////////////////////////////////////////
+	MAX30100_I2C_Read(MAX_ADDRESS_RD,MAX30100_SPO2_CONF, buffer);
+	//aux=(buffer&0xFC)|(DEFAULT_LED_PULSE_WIDTH);
+	aux=0x47;
+	MAX30100_I2C_Write(MAX_ADDRESS_WR, MAX30100_SPO2_CONF, aux);
+	////////////////////////////////////////////////////////////7
+
+	redLEDCurrent = (uint8_t) STARTING_RED_LED_CURRENT;
+	lastREDLedCurrentCheck=0;
+	IRLedCurrent=DEFAULT_IR_LED_CURRENT;
+
+	//				SETEO_CORRIENTES_LEDs
+	//////////////////////////////////////////////////////////////
+	buffer=((redLEDCurrent << 4) | IRLedCurrent );
+	MAX30100_I2C_Write(MAX_ADDRESS_WR, LED_CONFIGURATION, buffer);
+	//////////////////////////////////////////////////////////////
+
+	//				SETEO_HighresModeEnabled
+	//////////////////////////////////////////////////////////////
+	//SetHighresModeEnabled();
+
+	dcFilterIR.w = 0;
+	dcFilterIR.result = 0;
+
+	dcFilterRed.w = 0;
+	dcFilterRed.result = 0;
 
 
-/**
-  * @brief  Transmits in master mode an amount of data in blocking mode.
-  * @param  hi2c Pointer to a I2C_HandleTypeDef structure that contains
-  *                the configuration information for the specified I2C.
-  * @param  DevAddress Target device address: The device 7 bits address value
-  *         in datasheet must be shifted to the left before calling the interface
-  * @param  pData Pointer to data buffer
-  * @param  Size Amount of data to be sent
-  * @param  Timeout Timeout duration
-  * @retval HAL status
-  */
+	lpbFilterIR.v[0] = 0;
+	lpbFilterIR.v[1] = 0;
+	lpbFilterIR.result = 0;
+
+	meanDiffIR.index = 0;
+	meanDiffIR.sum = 0;
+	meanDiffIR.count = 0;
 
 
+	valuesBPM[0] = 0;
+	valuesBPMSum = 0;
+	valuesBPMCount = 0;
+	bpmIndex = 0;
+
+
+	irACValueSqSum = 0;
+	redACValueSqSum = 0;
+	samplesRecorded = 0;
+	pulsesDetected = 0;
+	currentSaO2Value = 0;
+
+	lastBeatThreshold = 0;
+
+}
+
+pulseoxymeter_t Actualizar_Resultados(void)
+{
+	pulseoxymeter_t result;
+	FIFO_t fifo;
+
+	Resetea_Resultados(&result);
+
+	Lectura_FIFO(&fifo);
+
+	Filtrado_DC(&fifo.rawIR,&IRprev_w,&ir_dcfiltrado);
+	Filtrado_DC(&fifo.rawRED,&REDprev_w,&red_dcfiltrado);
+
+	Mean_Median_Filter(ir_dcfiltrado,&meanDiffIR,&ir_meanfiltrado);
+	Filtro_PasabajosButterworth(&ir_meanfiltrado,&lpbFilterIR,&ir_lpbfiltrado);
+
+	irACValueSqSum  +=ir_dcfiltrado * ir_dcfiltrado;
+	redACValueSqSum +=red_dcfiltrado * red_dcfiltrado;
+	samplesRecorded++;
+
+	if( detectPulse( ir_lpbfiltrado, &result ) && samplesRecorded > 0 )
+	{
+		result.pulseDetected=true;
+		pulsesDetected++;
+
+	    ratioRMS = log( sqrt(redACValueSqSum/samplesRecorded) ) / log( sqrt(irACValueSqSum/samplesRecorded) );
+
+	    //if( debug == true )
+	      //{
+	        //Serial.print("RMS Ratio: ");
+	        //Serial.println(ratioRMS);
+	      //}
+	    currentSaO2Value = 115.0 - 18.0 * ratioRMS;
+	    result.SaO2 = currentSaO2Value;
+
+	    if( pulsesDetected % RESET_SPO2_EVERY_N_PULSES == 0)
+	    {
+	    	irACValueSqSum = 0;
+	        redACValueSqSum = 0;
+	        samplesRecorded = 0;
+	     }
+	}
+
+	Balance_Intensidades( REDprev_w, IRprev_w);
+
+	result.heartBPM = currentBPM;
+	result.irCardiogram = lpbFilterIR.result;
+	result.irDcValue = IRprev_w;
+	result.redDcValue = REDprev_w;
+	result.lastBeatThreshold = lastBeatThreshold;
+	result.dcFilteredIR = ir_dcfiltrado;
+	result.dcFilteredRed = red_dcfiltrado;
+
+	return result;
+}
 
 void Inicio_Heart_Rate(void)
 {
@@ -115,34 +249,38 @@ void Lectura_FIFO(FIFO_t *FIFO)
 	//uint8_t NUM_SAMPLES_TO_READ=0;
 	//uint8_t *p1=(uint8_t*)&FIFO->rawIR;
 	//uint8_t *p2=(uint8_t*)&FIFO->rawRED;
-	uint16_t aux=0;
+	//uint16_t aux=0;
+	uint8_t data[4]={0};
 	//MAX30100_I2C_Write(MAX_ADDRESS_WR,FIFO_WR_PTR,CLEAR);
 	//MAX30100_I2C_Read(MAX_ADDRESS_RD,FIFO_WR_PTR,BYTE_RD);
-	HAL_I2C_Master_Transmit(&hi2c1, MAX_ADDRESS_WR, &FIFO_WR_PTR, sizeof(FIFO_WR_PTR), 10);
-	HAL_I2C_Master_Receive(&hi2c1, MAX_ADDRESS_RD, &BYTE_RD, sizeof(BYTE_RD), 10);
-	FIFO_RD_PTR=BYTE_RD;
+	//HAL_I2C_Master_Transmit(&hi2c1, MAX_ADDRESS_WR, &FIFO_WR_PTR, sizeof(FIFO_WR_PTR), 10);
+	//HAL_I2C_Master_Receive(&hi2c1, MAX_ADDRESS_RD, &BYTE_RD, sizeof(BYTE_RD), 10);
+	//FIFO_RD_PTR=BYTE_RD;
 	//NUM_AVAILABLE_SAMPLES=FIFO_WR_PTR–FIFO_RD_PTR;
 //	NUM_AVAILABLE_SAMPLES=0x10;  //SETEO EL NUMERO DE MUESTRAS EN 16, PROBLEMAS AL COMPILAR CON LA LINEA DE ARRIBA
 	//NUM_SAMPLES_TO_READ=NUM_AVAILABLE_SAMPLES;
 	HAL_I2C_Master_Transmit(&hi2c1, MAX_ADDRESS_WR, &FIFO_DATA, sizeof(FIFO_DATA), 10);
 //for(int i=0;i<NUM_SAMPLES_TO_READ;i++)
 //	{
-		HAL_I2C_Master_Receive(&hi2c1, MAX_ADDRESS_RD, &BYTE_RD, sizeof(BYTE_RD), 10);
-		BYTE_MSB=BYTE_RD;
-		HAL_I2C_Master_Receive(&hi2c1, MAX_ADDRESS_RD, &BYTE_RD, sizeof(BYTE_RD), 10);
-		BYTE_LSB=BYTE_RD;
-
+		//HAL_I2C_Master_Receive(&hi2c1, MAX_ADDRESS_RD, &BYTE_RD, sizeof(BYTE_RD), 10);
+		//BYTE_MSB=BYTE_RD;
+		//HAL_I2C_Master_Receive(&hi2c1, MAX_ADDRESS_RD, &BYTE_RD, sizeof(BYTE_RD), 10);
+		//BYTE_LSB=BYTE_RD;
+		MAX30100_I2C_FIFO_Read(MAX_ADDRESS_RD,data);
 		// BUSCO ACOMODAR LOS DATOS QUE LEO DE A BYTES EN UNA VARIABLE FIFO.IRraw de 16bits
-		aux=BYTE_MSB;
-		FIFO->rawIR=((aux<<8)|BYTE_LSB);
+		//aux=BYTE_MSB;
 
-		HAL_I2C_Master_Receive(&hi2c1, MAX_ADDRESS_RD, &BYTE_RD, sizeof(BYTE_RD), 10);
-		BYTE_MSB=BYTE_RD;
-		HAL_I2C_Master_Receive(&hi2c1, MAX_ADDRESS_RD, &BYTE_RD, sizeof(BYTE_RD), 10);
-		BYTE_LSB=BYTE_RD;
+		//FIFO->rawIR=((aux<<8)|BYTE_LSB);
+		FIFO->rawIR=(data[0]|data[1]);
 
-		aux=BYTE_MSB;
-		FIFO->rawRED=((aux<<8)|BYTE_LSB);
+		//HAL_I2C_Master_Receive(&hi2c1, MAX_ADDRESS_RD, &BYTE_RD, sizeof(BYTE_RD), 10);
+		//BYTE_MSB=BYTE_RD;
+		//HAL_I2C_Master_Receive(&hi2c1, MAX_ADDRESS_RD, &BYTE_RD, sizeof(BYTE_RD), 10);
+		//BYTE_LSB=BYTE_RD;
+
+		//aux=BYTE_MSB;
+		//FIFO->rawRED=((aux<<8)|BYTE_LSB);
+		FIFO->rawRED=(data[2]|data[3]);
 	}
 
 
@@ -235,7 +373,7 @@ bool detectPulse(float sensor_value,pulseoxymeter_t *result)
 	         {
 	           currentBeat = HAL_GetTick();
 	           lastBeatThreshold = sensor_value;
-	           result->lastBeatThreshold = lastBeatThreshold;
+	           //result->lastBeatThreshold = lastBeatThreshold;
 	         }
 	         else
 	         {
@@ -289,7 +427,7 @@ bool detectPulse(float sensor_value,pulseoxymeter_t *result)
 	             valuesBPMCount++;
 
 	           currentBPM = valuesBPMSum / valuesBPMCount;
-	           result->heartBPM = currentBPM;
+	           //result->heartBPM = currentBPM;
 	           /*if(debug == true)
 	           {
 	             Serial.print("AVg. BPM: ");
@@ -354,7 +492,24 @@ void Balance_Intensidades(float redLedDC, float IRLedDC)
 	  }
 }
 
-void Resetea_Resultados(pulseoxymeter_t *result,meanDiffFilter_t *meanfilter,float currentSaO2Value)
+void SetHighresModeEnabled(void)
+{
+	uint8_t buffer=0;
+	uint8_t aux=00000001;
+
+	MAX30100_I2C_Read(MAX_ADDRESS_RD, SPO2_CONFIGURATION, buffer);
+	if(buffer>aux)
+	{
+		buffer=(buffer|MAX30100_SPO2_HI_RES_EN);
+		MAX30100_I2C_Write(MAX_ADDRESS_WR,SPO2_CONFIGURATION,buffer);
+	}
+	else
+	{
+		buffer=(buffer & ~MAX30100_SPO2_HI_RES_EN);
+		MAX30100_I2C_Write(MAX_ADDRESS_WR,SPO2_CONFIGURATION,buffer);
+	}
+}
+void Resetea_Resultados(pulseoxymeter_t *result)
 {
 	result->pulseDetected=false;
 	result->heartBPM=0.0;
@@ -365,13 +520,6 @@ void Resetea_Resultados(pulseoxymeter_t *result,meanDiffFilter_t *meanfilter,flo
 	result->lastBeatThreshold=0;
 	result->dcFilteredIR=0.0;
 	result->dcFilteredRed=0.0;
-	for(int i=0;i<MEAN_FILTER_SIZE;i++)
-	{
-		meanfilter->values[i]=0;
-	}
-	meanfilter->index=0;
-	meanfilter->sum=0;
-	meanfilter->count=0;
 }
 
 void MAX30100_I2C_Write(uint8_t address, uint8_t reg, uint8_t data)
@@ -388,4 +536,19 @@ void MAX30100_I2C_Read(uint8_t address, uint8_t reg, uint8_t data)
 	dt[0] = reg;
 	dt[1] = data;
 	HAL_I2C_Master_Receive(&hi2c1, address, dt,2, 10);
+}
+void MAX30100_I2C_FIFO_Read(uint8_t address, uint8_t dt[4])
+{
+	//uint8_t dt[4];
+	HAL_I2C_Master_Receive(&hi2c1, address, dt,4, 10);
+	//data[0] =dt[0];
+	//data[1] =dt[1];
+	//data[2] =dt[2];
+	//data[3] =dt[3];
+}
+void MAX30100_I2C_Reset_FIFO(void)
+{
+	MAX30100_I2C_Write(MAX_ADDRESS_WR, (uint8_t) MAX30100_FIFO_WRITE, (uint8_t)0);
+	MAX30100_I2C_Write(MAX_ADDRESS_WR, (uint8_t) MAX30100_FIFO_OVERFLOW_COUNTER, (uint8_t)0);
+	MAX30100_I2C_Write(MAX_ADDRESS_WR, (uint8_t) MAX30100_FIFO_READ, (uint8_t)0);
 }
