@@ -57,9 +57,7 @@ void MX_FATFS_Init(void)
 DWORD get_fattime(void)
 {
   /* USER CODE BEGIN get_fattime */
-
 	DWORD time=0;
-
 	RTC_TimeTypeDef sTime = {0};
 	RTC_DateTypeDef DateToUpdate = {0};
 	HAL_RTC_GetTime(pRTC, &sTime, RTC_FORMAT_BCD);
@@ -78,9 +76,7 @@ DWORD get_fattime(void)
 			hour << 11 |
 			minute << 5 |
 			second >> 1;
-
   return time;
-
   /* USER CODE END get_fattime */
 }
 

@@ -73,6 +73,13 @@ meanDiffFilter_t 	meanDiffIR;
 dcFilter_t 			dcFilterIR;
 dcFilter_t 			dcFilterRed;
 
+//*************************************************************
+//Función: 			MAX30100_Init
+//Descripción: 		Inicialización del módulo MAX30100
+//Parámetros: 		void
+//Valor devuelto: 	void
+//*************************************************************
+
 void MAX30100_Init(void)
 {
 	uint8_t buffer=0;
@@ -157,8 +164,8 @@ pulseoxymeter_t Actualizar_Resultados(void)
 
 	Lectura_FIFO(&fifo);
 
-	Filtrado_DC(&fifo.rawIR,&IRprev_w,&ir_dcfiltrado);
-	Filtrado_DC(&fifo.rawRED,&REDprev_w,&red_dcfiltrado);
+	Filtrado_DC((float)fifo.rawIR,&IRprev_w,&ir_dcfiltrado);
+	Filtrado_DC((float)fifo.rawRED,&REDprev_w,&red_dcfiltrado);
 
 	Mean_Median_Filter(ir_dcfiltrado,&meanDiffIR,&ir_meanfiltrado);
 	Filtro_PasabajosButterworth(&ir_meanfiltrado,&lpbFilterIR,&ir_lpbfiltrado);
@@ -243,77 +250,67 @@ void Inicio_SPO2_HR(void)
  *SE RECIBE UN PUNTERO A UNA VARIABLE TIPO FIFO COMPUESTA POR DOS CAMPOS rawIR y rawRED donde se guardará cada muestra leída. VER HOJA DE DATOS.
 */
 
+//*************************************************************
+//Función: 			Lectura_FIFO
+//Descripción: 		Lectura de los valores de IR y REDLED desde
+//					el registro FIFO del MAX30100
+//Parámetros: 		FIFO_t* puntero a estructura FIFO
+//Valor devuelto: 	void
+//*************************************************************
+
 void Lectura_FIFO(FIFO_t *FIFO)
 {
-	//uint8_t NUM_AVAILABLE_SAMPLES=0;
-	//uint8_t NUM_SAMPLES_TO_READ=0;
-	//uint8_t *p1=(uint8_t*)&FIFO->rawIR;
-	//uint8_t *p2=(uint8_t*)&FIFO->rawRED;
-	//uint16_t aux=0;
 	uint8_t data[4]={0};
-	//MAX30100_I2C_Write(MAX_ADDRESS_WR,FIFO_WR_PTR,CLEAR);
-	//MAX30100_I2C_Read(MAX_ADDRESS_RD,FIFO_WR_PTR,BYTE_RD);
-	//HAL_I2C_Master_Transmit(&hi2c1, MAX_ADDRESS_WR, &FIFO_WR_PTR, sizeof(FIFO_WR_PTR), 10);
-	//HAL_I2C_Master_Receive(&hi2c1, MAX_ADDRESS_RD, &BYTE_RD, sizeof(BYTE_RD), 10);
-	//FIFO_RD_PTR=BYTE_RD;
-	//NUM_AVAILABLE_SAMPLES=FIFO_WR_PTR–FIFO_RD_PTR;
-//	NUM_AVAILABLE_SAMPLES=0x10;  //SETEO EL NUMERO DE MUESTRAS EN 16, PROBLEMAS AL COMPILAR CON LA LINEA DE ARRIBA
-	//NUM_SAMPLES_TO_READ=NUM_AVAILABLE_SAMPLES;
+
 	HAL_I2C_Master_Transmit(&hi2c1, MAX_ADDRESS_WR, &FIFO_DATA, sizeof(FIFO_DATA), 10);
-//for(int i=0;i<NUM_SAMPLES_TO_READ;i++)
-//	{
-		//HAL_I2C_Master_Receive(&hi2c1, MAX_ADDRESS_RD, &BYTE_RD, sizeof(BYTE_RD), 10);
-		//BYTE_MSB=BYTE_RD;
-		//HAL_I2C_Master_Receive(&hi2c1, MAX_ADDRESS_RD, &BYTE_RD, sizeof(BYTE_RD), 10);
-		//BYTE_LSB=BYTE_RD;
-		MAX30100_I2C_FIFO_Read(MAX_ADDRESS_RD,data);
-		// BUSCO ACOMODAR LOS DATOS QUE LEO DE A BYTES EN UNA VARIABLE FIFO.IRraw de 16bits
-		//aux=BYTE_MSB;
 
-		//FIFO->rawIR=((aux<<8)|BYTE_LSB);
-		FIFO->rawIR=(data[0]|data[1]);
+	MAX30100_I2C_FIFO_Read(MAX_ADDRESS_RD,data);
 
-		//HAL_I2C_Master_Receive(&hi2c1, MAX_ADDRESS_RD, &BYTE_RD, sizeof(BYTE_RD), 10);
-		//BYTE_MSB=BYTE_RD;
-		//HAL_I2C_Master_Receive(&hi2c1, MAX_ADDRESS_RD, &BYTE_RD, sizeof(BYTE_RD), 10);
-		//BYTE_LSB=BYTE_RD;
+	FIFO->rawIR=(data[0]|data[1]);
+	FIFO->rawRED=(data[2]|data[3]);
+}
 
-		//aux=BYTE_MSB;
-		//FIFO->rawRED=((aux<<8)|BYTE_LSB);
-		FIFO->rawRED=(data[2]|data[3]);
-	}
+//*************************************************************
+//Función: 			Filtrado_DC
+//Descripción: 		Filtrado para quitar la señal continua
+//					presente en los valores leídos
+//Parámetros: 		float datos del FIFO
+//					float* valor previo w
+//					float* dato filtrado
+//Valor devuelto: 	void
+//*************************************************************
 
-
-
-void Filtrado_DC(uint16_t *raw_values,float *ptrprev_w, float *output_signal)
+void Filtrado_DC(float raw_values,float *ptrprev_w, float *output_signal)
 {
 	float x=0;
 	float w=0;
 	float alpha=0.95;
 	float prev_w=*ptrprev_w;
 	float result=0;
-	x=*raw_values;
 
-	//for(int i=0;i<=15;i++){
+		x=raw_values;
 
 		w = x + alpha * prev_w;
-		//(float) output_signal = w - prev_w;
 		result = w - prev_w;
 
 		*ptrprev_w=w;
 		*output_signal=result;
-	//}
 }
+
+//*************************************************************
+//Función: 			Mean_Median_Filter
+//Descripción: 		Filtro de mediana para reducir el ruido y
+//					limpiar la señal
+//Parámetros: 		float  datos de la salida del Filtrado_DC
+//					meanDiffFilter_t* puntero a estructura
+//					float* puntero a dato filtrado resultante
+//Valor devuelto: 	void
+//*************************************************************
 
 void Mean_Median_Filter(float M,meanDiffFilter_t *filterValues,float *ir_meanfiltrado)
 {
-	float avg = 0;
-	float aux = 0;
-	//filterValues->index = 0;
-	//filterValues->sum = 0;
-	//filterValues->count = 0;
-	//for(int i=0;i<=15;i++)
-	//{
+		float avg = 0;
+		float aux = 0;
 		filterValues->sum -= filterValues->values[filterValues->index];
 		filterValues->values[filterValues->index] = M;
 		filterValues->sum += filterValues->values[filterValues->index];
@@ -325,8 +322,17 @@ void Mean_Median_Filter(float M,meanDiffFilter_t *filterValues,float *ir_meanfil
 		avg = filterValues->sum / filterValues->count;
 		aux = avg-M;
 		*ir_meanfiltrado=aux;
-	//}
 }
+
+//*************************************************************
+//Función: 			Filtro_PasabajosButterworth
+//Descripción: 		Filtro pasabajos butterworth implementado
+//					con una ecuación en diferencia
+//Parámetros: 		float  datos de la salida del Median_Filter
+//					butterworthFilter_t* puntero a estructura
+//					float* puntero a dato filtrado resultante
+//Valor devuelto: 	void
+//*************************************************************
 
 void Filtro_PasabajosButterworth(float* x,butterworthFilter_t* filterResult ,float*ir_lpbfiltrado)
 {
@@ -335,12 +341,22 @@ void Filtro_PasabajosButterworth(float* x,butterworthFilter_t* filterResult ,flo
 
 	  //Fs = 100Hz and Fc = 10Hz
 	filterResult->v[1] = (2.452372752527856026e-1 * aux) + (0.50952544949442879485 * filterResult->v[0]);
+	  //Fs = 100Hz and Fc = 4Hz
+
+	//filterResult->v[1] = (1.367287359973195227e-1 * aux) + (0.72654252800536101020 * filterResult->v[0]);
 
 	filterResult->result = filterResult->v[0] + filterResult->v[1];
 
 	*ir_lpbfiltrado=filterResult->result;
 }
 
+//*************************************************************
+//Función: 			detectPulse
+//Descripción: 		Máquina de estados para la detección del pulso
+//Parámetros: 		float  datos de la salida del LPF
+//					pulseoxymeter_t* puntero a estructura result
+//Valor devuelto: 	void
+//*************************************************************
 bool detectPulse(float sensor_value,pulseoxymeter_t *result)
 {
 	//SOLO LA PRIMERA VEZ QUE SE USA LA FUNCIÓN LOS STATICS VALEN 0
@@ -373,18 +389,9 @@ bool detectPulse(float sensor_value,pulseoxymeter_t *result)
 	         {
 	           currentBeat = HAL_GetTick();
 	           lastBeatThreshold = sensor_value;
-	           //result->lastBeatThreshold = lastBeatThreshold;
 	         }
 	         else
 	         {
-/*
-	           if(debug == true)
-	           {
-	             Serial.print("Peak reached: ");
-	             Serial.print(sensor_value);
-	             Serial.print(" ");
-	             Serial.println(prev_sensor_value);
-	           }*/
 
 	           uint32_t beatDuration = currentBeat - lastBeat;
 	           lastBeat = currentBeat;
@@ -392,14 +399,6 @@ bool detectPulse(float sensor_value,pulseoxymeter_t *result)
 	           float rawBPM = 0;
 	           if(beatDuration > 0)
 	             rawBPM = 60000.0 / (float)beatDuration;
-	           //if(debug == true)
-	             //Serial.println(rawBPM);
-
-	           //This method sometimes glitches, it's better to go through whole moving average everytime
-	           //IT's a neat idea to optimize the amount of work for moving avg. but while placing, removing finger it can screw up
-	           //valuesBPMSum -= valuesBPM[bpmIndex];
-	           //valuesBPM[bpmIndex] = rawBPM;
-	           //valuesBPMSum += valuesBPM[bpmIndex];
 
 	           valuesBPM[bpmIndex] = rawBPM;
 	           valuesBPMSum = 0;
@@ -408,18 +407,6 @@ bool detectPulse(float sensor_value,pulseoxymeter_t *result)
 	             valuesBPMSum += valuesBPM[i];
 	           }
 
-	           /*if(debug == true)
-	           {
-	             Serial.print("CurrentMoving Avg: ");
-	             for(int i=0; i<PULSE_BPM_SAMPLE_SIZE; i++)
-	             {
-	               Serial.print(valuesBPM[i]);
-	               Serial.print(" ");
-	             }
-
-	             Serial.println(" ");
-	           }*/
-
 	           bpmIndex++;
 	           bpmIndex = bpmIndex % PULSE_BPM_SAMPLE_SIZE;
 
@@ -427,13 +414,6 @@ bool detectPulse(float sensor_value,pulseoxymeter_t *result)
 	             valuesBPMCount++;
 
 	           currentBPM = valuesBPMSum / valuesBPMCount;
-	           //result->heartBPM = currentBPM;
-	           /*if(debug == true)
-	           {
-	             Serial.print("AVg. BPM: ");
-	             Serial.println(currentBPM);
-	           }*/
-
 
 	           currentPulseDetectorState = PULSE_TRACE_DOWN;
 
@@ -460,6 +440,14 @@ bool detectPulse(float sensor_value,pulseoxymeter_t *result)
 
 }
 
+//*************************************************************
+//Función: 			Balance_Intensidades
+//Descripción: 		Corrección de las intensidades de los LEDS
+//					para evitar la saturación de la lectura
+//Parámetros: 		float datos del led rojo
+//					float datos del led IR
+//Valor devuelto: 	void
+//*************************************************************
 void Balance_Intensidades(float redLedDC, float IRLedDC)
 {
 	uint8_t buffer=0;
@@ -492,6 +480,13 @@ void Balance_Intensidades(float redLedDC, float IRLedDC)
 	  }
 }
 
+//FUNCIÓN NO UTILIZADA
+//*************************************************************
+//Función: 			SetHighresModeEnabled
+//Descripción: 		Modificacion del registro HI_RES_EN
+//Parámetros: 		void
+//Valor devuelto: 	void
+//*************************************************************
 void SetHighresModeEnabled(void)
 {
 	uint8_t buffer=0;
@@ -509,6 +504,15 @@ void SetHighresModeEnabled(void)
 		MAX30100_I2C_Write(MAX_ADDRESS_WR,SPO2_CONFIGURATION,buffer);
 	}
 }
+
+//*************************************************************
+//Función: 			Resetea_Resultados
+//Descripción: 		Resetea la estructura result para comenzar
+//					o realizar una nueva lectura
+//Parámetros: 		pulseoxymeter_t* puntero a estructura result
+//Valor devuelto: 	void
+//*************************************************************
+
 void Resetea_Resultados(pulseoxymeter_t *result)
 {
 	result->pulseDetected=false;
@@ -522,6 +526,15 @@ void Resetea_Resultados(pulseoxymeter_t *result)
 	result->dcFilteredRed=0.0;
 }
 
+//*************************************************************
+//Función: 			MAX30100_I2C_Write
+//Descripción: 		Escritura de un buffer a traves del bus I2C
+//Parámetros: 		uint8_t dirección del dispositivo
+//					uint8_t registro a escribir
+//					uint8_t data a escribir
+//Valor devuelto: 	void
+//*************************************************************
+
 void MAX30100_I2C_Write(uint8_t address, uint8_t reg, uint8_t data)
 {
 	uint8_t dt[2];
@@ -530,6 +543,15 @@ void MAX30100_I2C_Write(uint8_t address, uint8_t reg, uint8_t data)
 	HAL_I2C_Master_Transmit(&hi2c1, address, dt, 2, 10);
 }
 
+//*************************************************************
+//Función: 			MAX30100_I2C_Read
+//Descripción: 		Lectura de un buffer a traves del bus I2C
+//Parámetros: 		uint8_t dirección del dispositivo
+//					uint8_t registro a escribir
+//					uint8_t data a escribir
+//Valor devuelto: 	void
+//*************************************************************
+
 void MAX30100_I2C_Read(uint8_t address, uint8_t reg, uint8_t data)
 {
 	uint8_t dt[2];
@@ -537,15 +559,25 @@ void MAX30100_I2C_Read(uint8_t address, uint8_t reg, uint8_t data)
 	dt[1] = data;
 	HAL_I2C_Master_Receive(&hi2c1, address, dt,2, 10);
 }
+
+//*************************************************************
+//Función: 			MAX30100_I2C_FIFO_Read
+//Descripción: 		Lectura del FIFO del MAX30100, se leen 2 bytes
+//					por cada LED
+//Parámetros: 		void
+//Valor devuelto: 	void
+//*************************************************************
 void MAX30100_I2C_FIFO_Read(uint8_t address, uint8_t dt[4])
 {
-	//uint8_t dt[4];
 	HAL_I2C_Master_Receive(&hi2c1, address, dt,4, 10);
-	//data[0] =dt[0];
-	//data[1] =dt[1];
-	//data[2] =dt[2];
-	//data[3] =dt[3];
 }
+
+//*************************************************************
+//Función: 			MAX30100_I2C_Reset_FIFO
+//Descripción: 		Reseteo el registro FIFO
+//Parámetros: 		void
+//Valor devuelto: 	void
+//*************************************************************
 void MAX30100_I2C_Reset_FIFO(void)
 {
 	MAX30100_I2C_Write(MAX_ADDRESS_WR, (uint8_t) MAX30100_FIFO_WRITE, (uint8_t)0);

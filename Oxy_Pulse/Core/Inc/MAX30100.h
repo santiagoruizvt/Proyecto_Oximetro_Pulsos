@@ -16,7 +16,7 @@
 #define DEFAULT_IR_LED_CURRENT           	MAX30100_LED_CURRENT_50MA
 #define STARTING_RED_LED_CURRENT         	MAX30100_LED_CURRENT_27_1MA
 //Ajustes para el balance de intensidades de RED LED
-#define MAGIC_ACCEPTABLE_INTENSITY_DIFF    	65000
+#define MAGIC_ACCEPTABLE_INTENSITY_DIFF    	50000
 #define RED_LED_CURRENT_ADJUSTMENT_MS      	500
 
 #define FIFO_WR_PTR_ADDRESS 			  	0x02
@@ -166,7 +166,7 @@ void MAX30100_I2C_Write(uint8_t, uint8_t, uint8_t);
 void MAX30100_I2C_Read(uint8_t, uint8_t, uint8_t);
 void MAX30100_I2C_FIFO_Read(uint8_t , uint8_t[]);
 void Lectura_FIFO(FIFO_t *);
-void Filtrado_DC(uint16_t*,float*,float*);
+void Filtrado_DC(float,float*,float*);
 void Mean_Median_Filter(float,meanDiffFilter_t*,float*);
 void Filtro_PasabajosButterworth(float*,butterworthFilter_t*,float*);
 bool detectPulse(float,pulseoxymeter_t *);

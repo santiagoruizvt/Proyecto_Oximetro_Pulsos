@@ -60,8 +60,8 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define LED_Pin GPIO_PIN_13
 #define LED_GPIO_Port GPIOC
-#define SPI2_CSS_Pin GPIO_PIN_12
-#define SPI2_CSS_GPIO_Port GPIOB
+#define NSS_Pin GPIO_PIN_12
+#define NSS_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 #define INICIANDO 		0
