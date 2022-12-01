@@ -40,10 +40,11 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define DEMORA 2000
+#define DEMORA 4000
 #define DEMORA2 1
-#define DEMORA3 28
+#define DEMORA3 27
 #define DEMORA4 5000
+#define DEMORA5 10000
 #define ACTIVADO 60
 /* USER CODE END PD */
 
@@ -74,6 +75,7 @@ uint16_t CONTADOR_1=DEMORA;
 uint16_t CONTADOR_2=DEMORA2;
 uint16_t CONTADOR_3=0;
 uint16_t CONTADOR_4=0;
+uint16_t CONTADOR_5=0;
 uint16_t CONTADOR_ANTIRREBOTE=0;
 uint16_t antirrebote=ACTIVADO;
 
@@ -237,20 +239,17 @@ const unsigned char TILDE_OK [] = {
 uint8_t buf1=0;
 uint8_t buf2=0;
 uint8_t i=0;
+uint16_t j=0;
 char bufferserie_bpm[20];
 char bufferserie_SPO2[20];
+char bufferserie_bpm_SD[20];
+char bufferserie_SPO2_SD[20];
 
 char 	buffer_bpm[5]={0};
 char 	buffer_SO2[5]={0};
 
-int 	arrNumbers[10] = {0}; // TAMAÑO DEL VECTOR PARA SABER CUANTOS VALORES UTILIZO PARA CALCULAR EL PROMEDIO
-float 	Valores_BPM[10]={0};
-float 	Valores_SaO2[10]={0};
-int 	pos=0;
-long 	sum_BPM=0;
-long 	sum_SaO2=0;
-int 	len = sizeof(arrNumbers) / sizeof(int);
-int		count = sizeof(Valores_BPM) / sizeof(int);
+typedef char 	datosSD[20];
+datosSD			vectorSD[200];
 
 float 	heartBPM_AVG=0;
 float 	SaO2_AVG=0;
@@ -312,13 +311,15 @@ int main(void)
   MX_I2C2_Init();
   MX_SPI2_Init();
   MX_USART2_UART_Init();
-  MX_FATFS_Init();
   MX_RTC_Init();
+  MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
   SSD1306_Init();
   MAX30100_Init();
   HAL_UART_Receive_IT(&huart2, &byte, sizeof(byte));
 
+  SSD1306_GotoXY(95, 2);
+  SSD1306_Puts("v1.1",&Font_7x10,1);
   SSD1306_GotoXY(40, 0);
   SSD1306_Puts("OXY",&Font_16x26,1);
   SSD1306_GotoXY(25, 24);
@@ -326,16 +327,16 @@ int main(void)
   SSD1306_GotoXY(10, 50);
   SSD1306_Puts("...Iniciando...",&Font_7x10,1);
   SSD1306_UpdateScreen();
+  SSD1306_ScrollRight(0x06, 0x07);
 
-  HAL_UART_Transmit(&huart2, mensaje_START, sizeof(mensaje_START), HAL_MAX_DELAY);
 
-   f_mount(&USERFatFS,USERPath,0);
-   f_open(&USERFile,"InformeOxy.txt",FA_CREATE_ALWAYS | FA_WRITE);
-   uint32_t output;
-   f_write(&USERFile,"HOLA",sizeof("HOLA"),(void*)&output);
 
-   f_sync(&USERFile);
-   f_close(&USERFile);
+  f_mount(&USERFatFS,USERPath,0);
+  f_open(&USERFile,"OXY.txt",FA_CREATE_ALWAYS | FA_WRITE);
+  uint32_t output;
+  f_write(&USERFile,"VALORES:\n",strlen("VALORES:\n"),(void*)&output);
+  f_sync(&USERFile);
+
    //   f_write(&USERFile,"\nOXY_PULSE",sizeof("OXY_PULSE"),(void*)&output);
    //   f_write(&USERFile,"\nOXY_PULSE",sizeof("OXY_PULSE"),(void*)&output);
    //   f_write(&USERFile,"\nOXY_PULSE",sizeof("OXY_PULSE"),(void*)&output);
@@ -363,7 +364,7 @@ int main(void)
 	  case INICIANDO:
 	  	  //PANTALLA 1: INICIANDO EL DISPOSITIVO
 /////////////////////////////////////////////////////////////////////////////
-		  SSD1306_ScrollRight(0x06, 0x07);
+
 		  if(!CONTADOR_1)
 		  {
 			  estado=PREPARADO;
@@ -371,6 +372,7 @@ int main(void)
 			  SSD1306_Stopscroll();
 			  SSD1306_Clear();
 
+			  HAL_UART_Transmit(&huart2, mensaje_START, sizeof(mensaje_START), HAL_MAX_DELAY);
 		  }
 		  ///////////////////////////////////////////////////////////////////
 		  break;
@@ -390,13 +392,15 @@ int main(void)
 
 		  if(!CONTADOR_1 && flag_pulsador_valido)
 		  {
-			  estado=MIDIENDO;							//SE ESPERA QUE SE ACCIONE EL PULSADOR. CUANDO SE PULSA, FLAG_PULSADOR=1
-			  MAX30100_I2C_Reset_FIFO();				//SE RESETEA EL FIFO Y SE LIMPIA LA VARIABLE RESULT
-			  CONTADOR_3=DEMORA4;						//CAMBIO AL SIGUIENTE ESTADO "MIDIENDO"
-			  Resetea_Resultados(&result);
-			  flag_limpiar=1;
-			  flag_primera=1;
-			  flag_pulsador_valido=0;
+			estado=MIDIENDO;							//SE ESPERA QUE SE ACCIONE EL PULSADOR. CUANDO SE PULSA, FLAG_PULSADOR=1
+			MAX30100_I2C_Reset_FIFO();				//SE RESETEA EL FIFO Y SE LIMPIA LA VARIABLE RESULT
+			CONTADOR_3=DEMORA4;						//CAMBIO AL SIGUIENTE ESTADO "MIDIENDO"
+			Resetea_Resultados(&result);
+			flag_limpiar=1;
+			flag_primera=1;
+			flag_pulsador_valido=0;
+
+
 		  }
 
 		  if(flag_limpiar)
@@ -431,35 +435,33 @@ int main(void)
 			  CONTADOR_2=DEMORA;						//DEMORA PARA LIMPIAR PANTALLA
 		  }
 			//  antirrebote=ACTIVADO;
-
 		  break;
 	  case PRESENTACION:
 
-		  if(flag_limpiar)								//LIMPIO PANTALLA SOLO LA PRIMERA VEZ
+		  if(flag_limpiar && !flag_primera)								//LIMPIO PANTALLA SOLO LA PRIMERA VEZ
 		  {
-			  SSD1306_Clear();
-			  flag_limpiar=0;
+			SSD1306_Clear();
+			flag_limpiar=1;
+			flag_primera=1;
+			i=0;
 		  }
-
-		  if(i>9)
-		  {
-			  i=0;
-		  }
-
-		  Valores_BPM[i]=result.heartBPM;
-		  Valores_SaO2[i]=result.SaO2;
-		  i++;
-
 
 		  if(result.pulseDetected == true)
 		  {
-				  pos++;
 				  flag_pulso_perdido=0;
 				  CONTADOR_4=0;
 				  buf1=(uint8_t)result.heartBPM;
 				  buf2=(uint8_t)result.SaO2;
-				  sprintf(bufferserie_bpm,"%s %u \n",mensaje_BPM,(unsigned)result.heartBPM);
-				  sprintf(bufferserie_SPO2,"%s %u \n",mensaje_SPO2,(unsigned)result.SaO2);
+
+				  if(buf2>99)
+				  {
+					  buf2=99;				//PARA NO MOSTRAR PORCENTAJES MAYORES A 99%
+				  }
+
+				  sprintf(bufferserie_bpm,"%s %u \n",mensaje_BPM,(unsigned)buf1);
+				  sprintf(bufferserie_SPO2,"%s %u \n",mensaje_SPO2,(unsigned)buf2);
+				  //sprintf(bufferserie_bpm,"%s %u \n",mensaje_BPM,(unsigned)result.heartBPM);
+				  //sprintf(bufferserie_SPO2,"%s %u \n",mensaje_SPO2,(unsigned)result.SaO2);
 
 				  sprintf(buffer_bpm,"%u",buf1);
 				  sprintf(buffer_SO2,"%u",buf2);
@@ -467,8 +469,20 @@ int main(void)
 				  HAL_UART_Transmit(&huart2, (uint8_t*)bufferserie_bpm, strlen(bufferserie_bpm), HAL_MAX_DELAY);
 				  HAL_UART_Transmit(&huart2, (uint8_t*)bufferserie_SPO2, strlen(bufferserie_SPO2), HAL_MAX_DELAY);
 
+				  strcpy(vectorSD[j],bufferserie_bpm);
+				  j++;
+				  strcpy(vectorSD[j],bufferserie_SPO2);
+				  j++;
+				  /*
 				  f_write(&USERFile,bufferserie_bpm,strlen(bufferserie_bpm),(void*)&output);
 				  f_write(&USERFile,bufferserie_SPO2,strlen(bufferserie_SPO2),(void*)&output);
+				  f_sync(&USERFile);
+				  */
+				  if(!flag_limpiar && buf1<100)
+				  {
+					  SSD1306_Clear();
+					  flag_limpiar=1;
+				  }
 
 				  SSD1306_GotoXY(10, 5);
 				  SSD1306_Puts("BPM:",&Font_11x18,1);
@@ -484,11 +498,16 @@ int main(void)
 				  SSD1306_Puts(" %",&Font_11x18,1);
 				  SSD1306_UpdateScreen();
 
-				  pos++;
-				  if(pos>=len)
+				  if(flag_limpiar && buf1>100)
 				  {
-					  pos=0;
+					  flag_limpiar=0;
 				  }
+			  }
+
+			  if(!CONTADOR_1 && !flag_pulsador_valido)
+			  {
+				  estado=MIDIENDO;
+				  CONTADOR_1=0;
 			  }
 
 		  	  if(flag_pulsador_valido)
@@ -497,22 +516,25 @@ int main(void)
 		  		  flag_limpiar=1;
 		  		  flag_primera=1;
 		  		  flag_pulsador_valido=0;
+		  		  for(int k=0;k<j;k++)
+		  		  {
+					  f_write(&USERFile,vectorSD[k],strlen(vectorSD[k]),(void*)&output);
+		  		  }
+		  		  f_sync(&USERFile);
+		  		  f_close(&USERFile);
 		  	  }
 
-			  if(!CONTADOR_1)
-			  {
-				  estado=MIDIENDO;
-				  CONTADOR_1=0;
-			  }
+
 ///////////////////////////////////////////////////
 			//LIMPIO PANTALLA CADA 10ms
-			  if(!CONTADOR_2)
+			 /* if(!CONTADOR_2)
 			  {
 				  CONTADOR_2=DEMORA;
 				  SSD1306_Clear();
 			  }
+			  */
 //////////////////////////////////////////////////
-			  if(!result.pulseDetected)
+	/*		  if(!result.pulseDetected)
 			  {
 				  switch(state)
 				  {
@@ -534,12 +556,12 @@ int main(void)
 						  sprintf(buffer_SO2,"%u",buf2);
 						  SSD1306_GotoXY(10, 5);
 						  SSD1306_Puts("BPM:00",&Font_11x18,1);
-						  SSD1306_GotoXY(70, 5);
+						  //SSD1306_GotoXY(70, 5);
 						  //SSD1306_Puts(buffer_bpm,&Font_11x18,1);
 
 						  SSD1306_GotoXY(10, 35);
 						  SSD1306_Puts("SO2:00",&Font_11x18,1);
-						  SSD1306_GotoXY(70, 35);
+						  //SSD1306_GotoXY(70, 35);
 						  //SSD1306_Puts(buffer_SO2,&Font_11x18,1);
 
 						  SSD1306_GotoXY(90, 35);
@@ -550,38 +572,13 @@ int main(void)
 
 						  HAL_UART_Transmit(&huart2, mensaje_PULSO_PERDIDO, sizeof(mensaje_PULSO_PERDIDO), HAL_MAX_DELAY);
 					  }
-					  state=0;
 					  break;
 				  default:;
 				  }
 			  }
-
+*/
 
 		  break;
-	  case DATOS_FINALES:
-		  if(flag_final){
-			  buf2=(uint8_t)result.SaO2;
-			  buf1=(uint8_t)result.heartBPM;
-			  char buffer_bpm[5]={0};
-			  char buffer_SO2[5]={0};
-			  sprintf(buffer_bpm,"%u",buf1);
-			  sprintf(buffer_SO2,"%u",buf2);
-			  SSD1306_Clear();
-			  SSD1306_GotoXY(10, 5);
-			  SSD1306_Puts("BPM:",&Font_11x18,1);
-			  SSD1306_GotoXY(70, 5);
-			  SSD1306_Puts(buffer_bpm,&Font_11x18,1);
-			  SSD1306_GotoXY(10, 35);
-			  SSD1306_Puts("SO2:",&Font_11x18,1);
-			  SSD1306_GotoXY(70, 35);
-			  SSD1306_Puts(buffer_SO2,&Font_11x18,1);
-			  SSD1306_GotoXY(90, 35);
-			  SSD1306_Puts(" %",&Font_11x18,1);
-			  SSD1306_DrawBitmap(98, 4, TILDE_OK, 128, 64, 1);
-			  SSD1306_UpdateScreen();
-			  flag_final=0;
-		  }
-
 	  	  default:;
 		  }
   }
@@ -919,7 +916,7 @@ void HAL_IncTick(void)
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-		HAL_UART_Transmit(&huart2, &byte, sizeof(byte), 100);
+	/*	HAL_UART_Transmit(&huart2, &byte, sizeof(byte), 100);
 
 		//HAL_UART_Receive(&huart2, &byte, sizeof(byte), HAL_MAX_DELAY);
 		if (byte == '0')
@@ -927,7 +924,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 		if (byte == '1')
 			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 1);
-
+*/
 	//Habilito la interrupción
 	HAL_UART_Receive_IT(&huart2, &byte, sizeof(byte));
 }

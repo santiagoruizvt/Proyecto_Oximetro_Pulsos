@@ -174,19 +174,14 @@ pulseoxymeter_t Actualizar_Resultados(void)
 	redACValueSqSum +=red_dcfiltrado * red_dcfiltrado;
 	samplesRecorded++;
 
-	if( detectPulse( ir_lpbfiltrado, &result ) && samplesRecorded > 0 )
+	if( detectPulse( ir_lpbfiltrado ) && samplesRecorded > 0 )
 	{
 		result.pulseDetected=true;
 		pulsesDetected++;
 
 	    ratioRMS = log( sqrt(redACValueSqSum/samplesRecorded) ) / log( sqrt(irACValueSqSum/samplesRecorded) );
 
-	    //if( debug == true )
-	      //{
-	        //Serial.print("RMS Ratio: ");
-	        //Serial.println(ratioRMS);
-	      //}
-	    currentSaO2Value = 115.0 - 18.0 * ratioRMS;
+	    currentSaO2Value = 114.0 - 18.0 * ratioRMS;
 	    result.SaO2 = currentSaO2Value;
 
 	    if( pulsesDetected % RESET_SPO2_EVERY_N_PULSES == 0)
@@ -213,15 +208,7 @@ pulseoxymeter_t Actualizar_Resultados(void)
 void Inicio_Heart_Rate(void)
 {
 	uint8_t buffer=0;
-	//HAL_I2C_Master_Transmit(hi2c, DevAddress, pData, Size, Timeout)
-	//HAL_I2C_Master_Transmit(&hi2c1, (uint16_t)MAX_ADDRESS_WR, &ILEDS, sizeof(ILEDS), 100); //0x09
-	//HAL_I2C_Master_Transmit(&hi2c1, (uint16_t)MAX_ADDRESS_WR, &SRATEPULSEW, sizeof(SRATEPULSEW), 100);  //0x07
-	//HAL_I2C_Master_Transmit(&hi2c1, (uint16_t)MAX_ADDRESS_WR, &HR_ONLY, sizeof(HR_ONLY), 100); //0x06
-	//HAL_I2C_Master_Transmit(&hi2c1, (uint16_t)MAX_ADDRESS_WR, &LED_CONFIGURATION, 2, 10);
-	//HAL_I2C_Master_Transmit(&hi2c1, ILEDS, pData, Size, Timeout)
-	//MAX30100_I2C_Write(MAX_ADDRESS_WR,LED_CONFIGURATION,ILEDS);
-	//MAX30100_I2C_Write(MAX_ADDRESS_WR,LED_CONFIGURATION,ILEDS);
-	//MAX30100_I2C_Write(MAX_ADDRESS_WR,SPO2_SR_LED_PW,SRATEPULSEW);
+
 	MAX30100_I2C_Write(MAX_ADDRESS_WR,MODE_RG,MAX30100_MODE_HR_ONLY);
 	buffer=((DEFAULT_SAMPLING_RATE<<2)|DEFAULT_LED_PULSE_WIDTH |0b01000000);
 	MAX30100_I2C_Write(MAX_ADDRESS_WR,SPO2_CONFIGURATION,buffer);
@@ -266,8 +253,8 @@ void Lectura_FIFO(FIFO_t *FIFO)
 
 	MAX30100_I2C_FIFO_Read(MAX_ADDRESS_RD,data);
 
-	FIFO->rawIR=(data[0]|data[1]);
-	FIFO->rawRED=(data[2]|data[3]);
+	FIFO->rawIR=((data[0]<<8)|data[1]);
+	FIFO->rawRED=((data[2]<<8)|data[3]);
 }
 
 //*************************************************************
@@ -357,7 +344,7 @@ void Filtro_PasabajosButterworth(float* x,butterworthFilter_t* filterResult ,flo
 //					pulseoxymeter_t* puntero a estructura result
 //Valor devuelto: 	void
 //*************************************************************
-bool detectPulse(float sensor_value,pulseoxymeter_t *result)
+bool detectPulse(float sensor_value)
 {
 	//SOLO LA PRIMERA VEZ QUE SE USA LA FUNCIÓN LOS STATICS VALEN 0
 	static float prev_sensor_value = 0;
@@ -458,22 +445,17 @@ void Balance_Intensidades(float redLedDC, float IRLedDC)
 
 	if( HAL_GetTick() - lastREDLedCurrentCheck >= RED_LED_CURRENT_ADJUSTMENT_MS)
 	  {
-	    //Serial.println( redLedDC - IRLedDC );
 	    if( IRLedDC - redLedDC > MAGIC_ACCEPTABLE_INTENSITY_DIFF && redLEDCurrent < MAX30100_LED_CURRENT_50MA)
 	    {
 	      redLEDCurrent++;
 	      buffer=((aux1<<4)|aux2);
 	      MAX30100_I2C_Write(MAX_ADDRESS_WR,LED_CONFIGURATION,(uint8_t)buffer);
-	      //if(debug == true)
-	        //Serial.println("RED LED Current +");
 	    }
 	    else if(redLedDC - IRLedDC > MAGIC_ACCEPTABLE_INTENSITY_DIFF && redLEDCurrent > 0)
 	    {
 	      redLEDCurrent--;
 	      buffer=((aux1<<4)|aux2);
 	      MAX30100_I2C_Write(MAX_ADDRESS_WR,LED_CONFIGURATION,(uint8_t)buffer);
-	      //if(debug == true)
-	        //Serial.println("RED LED Current -");
 	    }
 
 	    lastREDLedCurrentCheck = HAL_GetTick();

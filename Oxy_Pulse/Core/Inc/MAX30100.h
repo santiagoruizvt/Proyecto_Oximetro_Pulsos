@@ -16,7 +16,7 @@
 #define DEFAULT_IR_LED_CURRENT           	MAX30100_LED_CURRENT_50MA
 #define STARTING_RED_LED_CURRENT         	MAX30100_LED_CURRENT_27_1MA
 //Ajustes para el balance de intensidades de RED LED
-#define MAGIC_ACCEPTABLE_INTENSITY_DIFF    	50000
+#define MAGIC_ACCEPTABLE_INTENSITY_DIFF    	65000
 #define RED_LED_CURRENT_ADJUSTMENT_MS      	500
 
 #define FIFO_WR_PTR_ADDRESS 			  	0x02
@@ -30,8 +30,8 @@
 #define MEAN_FILTER_SIZE        		  	15
 
 //Parámetros para la detección del pulso
-#define PULSE_MIN_THRESHOLD         		30 //probar con 300 si no funciona
-#define PULSE_MAX_THRESHOLD         		300
+#define PULSE_MIN_THRESHOLD         		100 //probar con 300 si no funciona
+#define PULSE_MAX_THRESHOLD         		2000
 #define PULSE_GO_DOWN_THRESHOLD     		1
 
 #define PULSE_BPM_SAMPLE_SIZE       		10 //tamaño del promedio móvil
@@ -169,7 +169,7 @@ void Lectura_FIFO(FIFO_t *);
 void Filtrado_DC(float,float*,float*);
 void Mean_Median_Filter(float,meanDiffFilter_t*,float*);
 void Filtro_PasabajosButterworth(float*,butterworthFilter_t*,float*);
-bool detectPulse(float,pulseoxymeter_t *);
+bool detectPulse(float);
 void Balance_Intensidades(float, float);
 void Resetea_Resultados(pulseoxymeter_t *);
 void SetHighresModeEnabled(void);

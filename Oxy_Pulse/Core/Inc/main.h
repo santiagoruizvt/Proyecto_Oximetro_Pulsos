@@ -68,7 +68,6 @@ void Error_Handler(void);
 #define PREPARADO 		1
 #define MIDIENDO 		2
 #define PRESENTACION 	3
-#define DATOS_FINALES	4
 
 /* USER CODE END Private defines */
 
