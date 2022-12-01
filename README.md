@@ -1,6 +1,8 @@
 # **Proyecto_Oximetro_Pulsos**
 *Repositorio destinado para el proyecto de la materia Técnicas Digitales 3*
 
+![Image text](https://github.com/santiagoruizvt/Proyecto_Oximetro_Pulsos/blob/main/Documentos/Imagenes/LOGO_OXY_PULSE.jpg)
+
 ## Se encuentra disponible en la carpeta "Documentos" el preinforme del proyecto.
 ## Se encuentra disponible en la carpeta "Documentos" el preinforme del proyecto.
 ## Se agrega el código desarrollado con STM32CubeIDE, con las siguientes configuraciones:
