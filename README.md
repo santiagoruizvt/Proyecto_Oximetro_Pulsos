@@ -2,6 +2,7 @@
 *Repositorio destinado para el proyecto de la materia Técnicas Digitales 3*
 
 ## Se encuentra disponible en la carpeta "Documentos" el preinforme del proyecto.
+## Se encuentra disponible en la carpeta "Documentos" el preinforme del proyecto.
 ## Se agrega el código desarrollado con STM32CubeIDE, con las siguientes configuraciones:
 
 - UART: Se utilizará para la comunicación con el módulo bluetooth HM10.
@@ -24,3 +25,15 @@
 
 - PULSADOR: Se utilizará para comenzar con la medición.
 	- PC14: PULL-UP
+
+# Modelos 3D
+
+## Diseños realizados con Fusion 360 (Autodesk)
+
+https://github.com/santiagoruizvt/Proyecto_Oximetro_Pulsos/blob/main/Documentos/Imagenes/Gabinete_Principal.jpg
+
+https://github.com/santiagoruizvt/Proyecto_Oximetro_Pulsos/blob/main/Documentos/Imagenes/Clip_medicion.jpg
+
+# PROYECTO FINALIZADO
+
+https://github.com/santiagoruizvt/Proyecto_Oximetro_Pulsos/blob/main/Documentos/Imagenes/Proyecto_finalizado.jpg
