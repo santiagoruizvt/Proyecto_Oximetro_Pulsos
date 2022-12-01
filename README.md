@@ -30,10 +30,10 @@
 
 ## Diseños realizados con Fusion 360 (Autodesk)
 
-https://github.com/santiagoruizvt/Proyecto_Oximetro_Pulsos/blob/main/Documentos/Imagenes/Gabinete_Principal.jpg
+![Image text](https://github.com/santiagoruizvt/Proyecto_Oximetro_Pulsos/blob/main/Documentos/Imagenes/Gabinete_Principal.jpg)
 
-https://github.com/santiagoruizvt/Proyecto_Oximetro_Pulsos/blob/main/Documentos/Imagenes/Clip_medicion.jpg
+![Image text](https://github.com/santiagoruizvt/Proyecto_Oximetro_Pulsos/blob/main/Documentos/Imagenes/Clip_medicion.jpg)
 
 # PROYECTO FINALIZADO
 
-https://github.com/santiagoruizvt/Proyecto_Oximetro_Pulsos/blob/main/Documentos/Imagenes/Proyecto_finalizado.jpg
+![Image text](https://github.com/santiagoruizvt/Proyecto_Oximetro_Pulsos/blob/main/Documentos/Imagenes/Proyecto_finalizado.jpg)
